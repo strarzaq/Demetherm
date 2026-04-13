@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Demetherm — Temperature Monitor</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap');
+
+```
+:root {
+  --bg:       #0d1117;
+  --surface:  #161b22;
+  --border:   #30363d;
+  --text:     #c9d1d9;
+  --muted:    #8b949e;
+  --accent:   #58a6ff;
+  --green:    #3fb950;
+  --red:      #f85149;
+  --orange:   #ffa657;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'IBM Plex Sans', sans-serif;
+  min-height: 100vh;
+}
+
+header {
+  border-bottom: 1px solid var(--border);
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--surface);
+}
+
+header h1 {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 1.1em;
+  color: var(--accent);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.pill {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7em;
+  padding: 3px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.pill.ok  { border-color: var(--green); color: var(--green); }
+.pill.err { border-color: var(--red);   color: var(--red);   }
+
+main { padding: 24px; max-width: 1200px; margin: 0 auto; }
+
+/* Config bar */
+.config-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.config-bar input {
+  flex: 1;
+  min-width: 260px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.85em;
+}
+
+.config-bar input:focus { outline: none; border-color: var(--accent); }
+
+.config-bar input::placeholder { color: var(--muted); }
+
+button {
+  background: var(--accent);
+  color: #0d1117;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.85em;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+button:hover { opacity: 0.85; }
+button:disabled { opacity: 0.4; cursor: default; }
+
+/* Status row */
+.status-row {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.78em;
+  color: var(--muted);
+  margin-bottom: 20px;
+}
+
+.status-row span { margin-right: 20px; }
+.status-row .ok  { color: var(--green); }
+.status-row .err { color: var(--red); }
+
+/* Latest readings grid */
+.readings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.node-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px;
+}
+
+.node-card .node-title {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75em;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+
+.node-card .sensor-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.88em;
+}
+
+.node-card .sensor-row:last-child { border-bottom: none; }
+
+.node-card .sensor-label { color: var(--muted); font-size: 0.85em; }
+
+.node-card .sensor-val {
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 600;
+  font-size: 1.05em;
+}
+
+.node-card .sensor-val.cold { color: #79c0ff; }
+.node-card .sensor-val.freeze { color: var(--red); }
+.node-card .sensor-val.na { color: var(--muted); }
+
+/* Chart */
+.chart-section { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 16px; margin-bottom: 24px; }
+
+.chart-section h2 {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8em;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+}
+
+.chart-wrap { position: relative; height: 380px; }
+
+/* Table */
+.table-section { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 16px; }
+
+.table-section h2 {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8em;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+}
+
+.table-wrap { overflow-x: auto; }
+
+table { border-collapse: collapse; width: 100%; font-size: 0.82em; }
+th, td { border: 1px solid var(--border); padding: 6px 10px; text-align: center; white-space: nowrap; }
+th { background: #0d1117; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-weight: 400; }
+td { font-family: 'IBM Plex Mono', monospace; }
+td.freeze { color: var(--red); }
+td.cold   { color: #79c0ff; }
+td.na     { color: var(--border); }
+tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+
+.no-data {
+  text-align: center;
+  padding: 40px;
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.9em;
+}
+
+footer {
+  text-align: center;
+  padding: 20px;
+  color: var(--border);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75em;
+}
+```
+
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>&#9632; Demetherm</h1>
+  <span class="pill" id="conn-pill">disconnected</span>
+  <span style="flex:1"></span>
+  <span style="font-size:0.8em;color:var(--muted);font-family:'IBM Plex Mono',monospace" id="last-refresh">—</span>
+</header>
+
+<main>
+
+  <div class="config-bar">
+    <input type="text" id="sheet-id" placeholder="Paste Google Sheet ID here...">
+    <button onclick="loadData()">Load</button>
+  </div>
+
+  <div class="status-row" id="status-row">
+    <span>Rows: <span id="s-rows">—</span></span>
+    <span>Nodes: <span id="s-nodes">—</span></span>
+    <span>Latest: <span id="s-latest">—</span></span>
+  </div>
+
+  <div class="readings-grid" id="readings-grid">
+    <div class="no-data">Enter a Google Sheet ID above and click Load</div>
+  </div>
+
+  <div class="chart-section">
+    <h2>Temperature history — all nodes (click legend to toggle)</h2>
+    <div class="chart-wrap"><canvas id="chart"></canvas></div>
+  </div>
+
+  <div class="table-section">
+    <h2>Raw data — last 50 rows</h2>
+    <div class="table-wrap" id="table-wrap">
+      <div class="no-data">No data loaded</div>
+    </div>
+  </div>
+
+</main>
+
+<footer>Demetherm Logger v1.0</footer>
+
+<script>
+// ── Config ───────────────────────────────────────────────────
+// URL param ?sheet=SHEET_ID pre-fills the input
+const params = new URLSearchParams(window.location.search);
+if (params.get('sheet')) {
+  document.getElementById('sheet-id').value = params.get('sheet');
+}
+
+// ── State ────────────────────────────────────────────────────
+let chart = null;
+let parsedRows = [];
+let detectedNodes = [];
+
+// Colour palette — 6 nodes × 3 sensors = 18 colours
+const palette = [
+  '#58a6ff','#3fb950','#ff7b72',
+  '#d2a8ff','#ffa657','#79c0ff',
+  '#56d364','#f78166','#bc8cff',
+  '#ffb77b','#a5d6ff','#85e89d',
+  '#ffaaa8','#d5b8ff','#ffc999',
+  '#cae8ff','#b7f0bd','#ffc1be'
+];
+
+// ── CSV URL from Sheet ID ─────────────────────────────────────
+function csvUrl(sheetId) {
+  return `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=Data`;
+}
+
+// ── Load data ────────────────────────────────────────────────
+function loadData() {
+  const id = document.getElementById('sheet-id').value.trim();
+  if (!id) { alert('Please enter a Sheet ID'); return; }
+
+  // Update URL param without reload
+  const url = new URL(window.location);
+  url.searchParams.set('sheet', id);
+  window.history.replaceState({}, '', url);
+
+  const pill = document.getElementById('conn-pill');
+  pill.textContent = 'loading...';
+  pill.className = 'pill';
+
+  Papa.parse(csvUrl(id), {
+    download: true,
+    header: true,
+    skipEmptyLines: true,
+    complete: function(results) {
+      if (!results.data || results.data.length === 0) {
+        pill.textContent = 'no data';
+        pill.className = 'pill err';
+        return;
+      }
+      parsedRows = results.data;
+      detectNodes(results.meta.fields);
+      renderAll();
+      pill.textContent = 'connected';
+      pill.className = 'pill ok';
+      document.getElementById('last-refresh').textContent =
+        'Refreshed: ' + new Date().toLocaleTimeString();
+    },
+    error: function(err) {
+      pill.textContent = 'error';
+      pill.className = 'pill err';
+      console.error(err);
+    }
+  });
+}
+
+// ── Detect which node columns exist ─────────────────────────
+function detectNodes(fields) {
+  detectedNodes = [];
+  for (let n = 1; n <= 6; n++) {
+    if (fields.includes('N' + n + '_T1')) detectedNodes.push(n);
+  }
+}
+
+// ── Render everything ────────────────────────────────────────
+function renderAll() {
+  document.getElementById('s-rows').textContent = parsedRows.length;
+  document.getElementById('s-nodes').textContent = detectedNodes.join(', ') || '—';
+
+  const latest = parsedRows[parsedRows.length - 1];
+  document.getElementById('s-latest').textContent =
+    latest ? latest['Timestamp'] || '—' : '—';
+
+  renderCards(latest);
+  renderChart();
+  renderTable();
+}
+
+// ── Latest readings cards ────────────────────────────────────
+function renderCards(row) {
+  const grid = document.getElementById('readings-grid');
+  if (!row || detectedNodes.length === 0) {
+    grid.innerHTML = '<div class="no-data">No data available</div>';
+    return;
+  }
+  grid.innerHTML = '';
+  detectedNodes.forEach(n => {
+    const t1 = parseFloat(row['N' + n + '_T1']);
+    const t2 = parseFloat(row['N' + n + '_T2']);
+    const ta = parseFloat(row['N' + n + '_TA']);
+
+    function valClass(v) {
+      if (isNaN(v)) return 'na';
+      if (v <= 0)   return 'freeze';
+      if (v <= 3)   return 'cold';
+      return '';
+    }
+    function valStr(v) { return isNaN(v) ? 'NA' : v.toFixed(2) + ' °C'; }
+
+    grid.innerHTML += `
+      <div class="node-card">
+        <div class="node-title">Node ${n}</div>
+        <div class="sensor-row">
+          <span class="sensor-label">T1 Branch</span>
+          <span class="sensor-val ${valClass(t1)}">${valStr(t1)}</span>
+        </div>
+        <div class="sensor-row">
+          <span class="sensor-label">T2 Branch</span>
+          <span class="sensor-val ${valClass(t2)}">${valStr(t2)}</span>
+        </div>
+        <div class="sensor-row">
+          <span class="sensor-label">TA Ambient</span>
+          <span class="sensor-val ${valClass(ta)}">${valStr(ta)}</span>
+        </div>
+      </div>`;
+  });
+}
+
+// ── Chart ────────────────────────────────────────────────────
+function renderChart() {
+  const timestamps = parsedRows.map(r => r['Timestamp'] || '');
+  const datasets = [];
+  let ci = 0;
+
+  detectedNodes.forEach(n => {
+    ['T1','T2','TA'].forEach((s, si) => {
+      const col = 'N' + n + '_' + s;
+      const vals = parsedRows.map(r => {
+        const v = parseFloat(r[col]);
+        return isNaN(v) ? null : v;
+      });
+      datasets.push({
+        label: 'Node ' + n + ' ' + s,
+        data: vals,
+        borderColor: palette[ci % palette.length],
+        borderWidth: 1.5,
+        pointRadius: 1.5,
+        tension: 0.1,
+        fill: false,
+        hidden: s !== 'T1' // T2 and TA hidden by default, toggleable in legend
+      });
+      ci++;
+    });
+  });
+
+  const ctx = document.getElementById('chart').getContext('2d');
+  if (chart) chart.destroy();
+
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: timestamps, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          labels: {
+            color: '#8b949e',
+            font: { size: 11, family: 'IBM Plex Mono' },
+            boxWidth: 12
+          }
+        },
+        tooltip: {
+          backgroundColor: '#161b22',
+          borderColor: '#30363d',
+          borderWidth: 1,
+          titleColor: '#58a6ff',
+          bodyColor: '#c9d1d9',
+          titleFont: { family: 'IBM Plex Mono' },
+          bodyFont: { family: 'IBM Plex Mono' },
+          callbacks: {
+            label: ctx => ctx.dataset.label + ': ' +
+              (ctx.parsed.y === null ? 'NA' : ctx.parsed.y.toFixed(2) + ' °C')
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#8b949e', maxTicksLimit: 12, font: { size: 10, family: 'IBM Plex Mono' } },
+          grid: { color: '#21262d' }
+        },
+        y: {
+          ticks: { color: '#8b949e', font: { size: 10, family: 'IBM Plex Mono' },
+                   callback: v => v.toFixed(1) + '°' },
+          grid: { color: '#21262d' },
+          beginAtZero: false
+        }
+      }
+    }
+  });
+}
+
+// ── Table (last 50 rows) ─────────────────────────────────────
+function renderTable() {
+  const wrap = document.getElementById('table-wrap');
+  if (parsedRows.length === 0) {
+    wrap.innerHTML = '<div class="no-data">No data</div>';
+    return;
+  }
+
+  const last50 = parsedRows.slice(-50).reverse();
+  const cols = ['Timestamp'];
+  detectedNodes.forEach(n => {
+    cols.push('N' + n + '_T1', 'N' + n + '_T2', 'N' + n + '_TA');
+  });
+
+  let html = '<table><thead><tr>';
+  cols.forEach(c => { html += '<th>' + c.replace('_',' ') + '</th>'; });
+  html += '</tr></thead><tbody>';
+
+  last50.forEach(row => {
+    html += '<tr>';
+    cols.forEach(c => {
+      if (c === 'Timestamp') {
+        html += '<td>' + (row[c] || '—') + '</td>';
+      } else {
+        const v = parseFloat(row[c]);
+        if (isNaN(v)) {
+          html += '<td class="na">NA</td>';
+        } else {
+          const cls = v <= 0 ? 'freeze' : (v <= 3 ? 'cold' : '');
+          html += `<td class="${cls}">${v.toFixed(2)}</td>`;
+        }
+      }
+    });
+    html += '</tr>';
+  });
+
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+// ── Auto-refresh every 5 minutes ─────────────────────────────
+setInterval(() => {
+  const id = document.getElementById('sheet-id').value.trim();
+  if (id) loadData();
+}, 300000);
+
+// Auto-load if sheet ID already in URL
+if (params.get('sheet')) loadData();
+</script>
+
+</body>
+</html>
