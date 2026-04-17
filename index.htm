@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Demetherm — Frost Monitor</title>
+  <title>Demetherm — Frost Monitor v1.2</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <style>
@@ -492,6 +492,11 @@ function renderAll() {
 }
 
 // ── Cards ─────────────────────────────────────────────────────
+function parseNum(v) {
+  if (v === null || v === undefined || v === 'NA' || v === '') return NaN;
+  return parseFloat(String(v).replace(',', '.'));
+}
+
 function renderCards(row) {
   const grid = document.getElementById('readings-grid');
   if (!row || detectedNodes.length === 0) {
@@ -500,10 +505,10 @@ function renderCards(row) {
   grid.innerHTML = '';
 
   detectedNodes.forEach(n => {
-    const t1 = parseFloat(row['N' + n + '_T1']);
-    const t2 = parseFloat(row['N' + n + '_T2']);
-    const ta = parseFloat(row['N' + n + '_TA']);
-    const h  = parseFloat(row['N' + n + '_H']);
+    const t1 = parseNum(row['N' + n + '_T1']);
+    const t2 = parseNum(row['N' + n + '_T2']);
+    const ta = parseNum(row['N' + n + '_TA']);
+    const h  = parseNum(row['N' + n + '_H']);
 
     function tempClass(v) {
       if (isNaN(v)) return 'na';
@@ -559,7 +564,7 @@ function renderChart() {
     // T1 — visible by default
     datasets.push({
       label: `Node ${n} T1`,
-      data: parsedRows.map(r => { const v = parseFloat(r['N'+n+'_T1']); return isNaN(v) ? null : v; }),
+      data: parsedRows.map(r => { const v = parseNum(r['N'+n+'_T1']); return isNaN(v) ? null : v; }),
       borderColor: color,
       borderWidth: 2,
       pointRadius: 1.5,
@@ -571,7 +576,7 @@ function renderChart() {
     // T2 — hidden by default
     datasets.push({
       label: `Node ${n} T2`,
-      data: parsedRows.map(r => { const v = parseFloat(r['N'+n+'_T2']); return isNaN(v) ? null : v; }),
+      data: parsedRows.map(r => { const v = parseNum(r['N'+n+'_T2']); return isNaN(v) ? null : v; }),
       borderColor: color,
       borderWidth: 1.2,
       borderDash: [5, 3],
@@ -584,7 +589,7 @@ function renderChart() {
     // TA — hidden by default
     datasets.push({
       label: `Node ${n} TA`,
-      data: parsedRows.map(r => { const v = parseFloat(r['N'+n+'_TA']); return isNaN(v) ? null : v; }),
+      data: parsedRows.map(r => { const v = parseNum(r['N'+n+'_TA']); return isNaN(v) ? null : v; }),
       borderColor: color,
       borderWidth: 1.2,
       borderDash: [2, 3],
@@ -597,7 +602,7 @@ function renderChart() {
     // H% — hidden by default, right axis
     datasets.push({
       label: `Node ${n} H%`,
-      data: parsedRows.map(r => { const v = parseFloat(r['N'+n+'_H']); return isNaN(v) ? null : v; }),
+      data: parsedRows.map(r => { const v = parseNum(r['N'+n+'_H']); return isNaN(v) ? null : v; }),
       borderColor: humColor,
       borderWidth: 1,
       pointRadius: 0,
@@ -698,7 +703,7 @@ function renderTable() {
       if (c === 'Timestamp') {
         html += '<td>' + (row[c] || '—') + '</td>';
       } else {
-        const v = parseFloat(row[c]);
+        const v = parseNum(row[c]);
         const isH = c.endsWith('_H');
         if (isNaN(v)) {
           html += '<td class="na">NA</td>';
